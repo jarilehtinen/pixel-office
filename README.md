@@ -13,10 +13,7 @@ A gamified status view that visualizes Claude Code sessions as a **Game Dev Stor
 
 ## Setup
 
-### Backend
-
 ```bash
-cd backend
 composer install
 cp .env.example .env    # SQLite by default
 php artisan key:generate
@@ -24,13 +21,7 @@ php artisan migrate
 php artisan serve        # http://localhost:8000
 ```
 
-### Frontend
-
-```bash
-cd frontend
-python3 -m http.server 3000
-# Open http://localhost:3000
-```
+Frontend is served from `public/` (office.html, office.js, paintings/).
 
 ### Hooks
 
@@ -99,7 +90,6 @@ Returns a list of events in chronological order.
 ## Tests
 
 ```bash
-cd backend
 php vendor/bin/pest
 ```
 

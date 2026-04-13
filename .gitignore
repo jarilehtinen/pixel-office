@@ -1,33 +1,26 @@
-# OS
+*.log
 .DS_Store
-Thumbs.db
-
-# IDE / AI
-.idea/
-.vscode/
-.claude/
-*.swp
-*.swo
-
-# Environment
 .env
 .env.backup
 .env.production
-
-# Laravel (backend/)
-backend/vendor/
-backend/node_modules/
-backend/storage/*.key
-backend/storage/framework/cache/data/*
-backend/storage/framework/sessions/*
-backend/storage/framework/views/*
-backend/.phpunit.result.cache
-backend/.phpunit.cache/
-
-# SQLite
-*.sqlite
-*.sqlite-journal
-
-# Logs
-*.log
-CLAUDE.md
+.phpactor.json
+.phpunit.result.cache
+/.fleet
+/.idea
+/.nova
+/.phpunit.cache
+/.vscode
+/.zed
+/auth.json
+/node_modules
+/public/build
+/public/hot
+/public/storage
+/storage/*.key
+/storage/pail
+/vendor
+_ide_helper.php
+Homestead.json
+Homestead.yaml
+Thumbs.db
+.claude/
