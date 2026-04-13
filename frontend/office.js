@@ -115,7 +115,7 @@ function drawWalls() {
     // Paintings
     drawPainting(CANVAS_W * 0.28, 30*S, 80*S, 55*S, paintingImgs[0]);
     drawPainting(CANVAS_W / 2 - 45*S, 22*S, 90*S, 65*S, paintingImgs[1]);
-    drawPainting(CANVAS_W * 0.72 - 80*S, 32*S, 75*S, 50*S, paintingImgs[2]);
+    drawPainting(CANVAS_W * 0.72 - 80*S, 32*S, 75*S, 55*S, paintingImgs[2]);
 }
 
 function drawCloud(cx, cy, cw, ch) {
@@ -175,18 +175,25 @@ function drawPainting(x, y, w, h, img) {
     // Image (contain-fit)
     if (img && img.complete && img.naturalWidth > 0) {
         ctx.imageSmoothingEnabled = false;
-        const innerW = w - 6*S, innerH = h - 6*S;
+        const b = 2*S;
+        const innerW = w - 2*b, innerH = h - 2*b;
+        ctx.save();
+        ctx.beginPath();
+        ctx.rect(x + b, y + b, innerW, innerH);
+        ctx.clip();
+        // Cover-fit: fill frame, crop overflow
         const imgRatio = img.naturalWidth / img.naturalHeight;
         const frameRatio = innerW / innerH;
         let dw, dh;
         if (imgRatio > frameRatio) {
-            dw = innerW;
-            dh = innerW / imgRatio;
-        } else {
             dh = innerH;
             dw = innerH * imgRatio;
+        } else {
+            dw = innerW;
+            dh = innerW / imgRatio;
         }
-        ctx.drawImage(img, x + 3*S + (innerW - dw) / 2, y + 3*S + (innerH - dh) / 2, dw, dh);
+        ctx.drawImage(img, x + b + (innerW - dw) / 2, y + b + (innerH - dh) / 2, dw, dh);
+        ctx.restore();
     }
 }
 
