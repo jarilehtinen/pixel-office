@@ -53,6 +53,13 @@ function resizeCanvas() {
 
 let animFrame = 0;
 
+// Painting images
+const paintingImgs = [1, 3, 5].map(n => {
+    const img = new Image();
+    img.src = 'paintings/painting' + n + '.png?v=' + Date.now();
+    return img;
+});
+
 // Clouds drifting past windows (one per window, different offsets)
 const clouds = [
     { x: 0, y: 0.3, w: 28, h: 11, speed: 0.12 },
@@ -105,52 +112,10 @@ function drawWalls() {
     // Window on the right
     drawWindow(CANVAS_W * 0.82, 20*S, 120*S, 70*S);
 
-    // Painting in the center — pixel landscape
-    const tX = CANVAS_W / 2 - 60*S;
-    ctx.fillStyle = '#2a2a2a';
-    ctx.fillRect(tX, 22*S, 120*S, 70*S);
-    // Sky
-    ctx.fillStyle = '#6aafe8';
-    ctx.fillRect(tX + 4*S, 26*S, 112*S, 30*S);
-    // Cloud
-    ctx.fillStyle = '#d0e8ff';
-    ctx.fillRect(tX + 20*S, 30*S, 18*S, 6*S);
-    ctx.fillRect(tX + 16*S, 33*S, 26*S, 6*S);
-    ctx.fillRect(tX + 75*S, 34*S, 14*S, 5*S);
-    ctx.fillRect(tX + 72*S, 36*S, 20*S, 5*S);
-    // Mountains
-    ctx.fillStyle = '#5a7a5a';
-    ctx.fillRect(tX + 4*S, 48*S, 30*S, 8*S);
-    ctx.fillRect(tX + 10*S, 42*S, 18*S, 6*S);
-    ctx.fillRect(tX + 16*S, 38*S, 6*S, 4*S);
-    ctx.fillStyle = '#4a6a4a';
-    ctx.fillRect(tX + 60*S, 46*S, 36*S, 10*S);
-    ctx.fillRect(tX + 68*S, 40*S, 20*S, 6*S);
-    ctx.fillRect(tX + 74*S, 36*S, 8*S, 4*S);
-    // Snow caps on mountain peaks
-    ctx.fillStyle = '#eef8ff';
-    ctx.fillRect(tX + 16*S, 38*S, 6*S, 2*S);
-    ctx.fillRect(tX + 74*S, 36*S, 8*S, 2*S);
-    // Meadow — extends to frame bottom (88*S)
-    ctx.fillStyle = '#5a9a4a';
-    ctx.fillRect(tX + 4*S, 56*S, 112*S, 32*S);
-    // Lake
-    ctx.fillStyle = '#4a8ac0';
-    ctx.fillRect(tX + 40*S, 64*S, 30*S, 14*S);
-    ctx.fillStyle = 'rgba(255,255,255,0.2)';
-    ctx.fillRect(tX + 44*S, 66*S, 10*S, 2*S);
-    // Spruce tree on the left
-    ctx.fillStyle = '#2a5a2a';
-    ctx.fillRect(tX + 10*S, 60*S, 8*S, 4*S);
-    ctx.fillRect(tX + 12*S, 56*S, 4*S, 4*S);
-    ctx.fillStyle = '#3a2a1a';
-    ctx.fillRect(tX + 13*S, 64*S, 2*S, 8*S);
-    // Spruce tree on the right
-    ctx.fillStyle = '#2a5a2a';
-    ctx.fillRect(tX + 90*S, 58*S, 10*S, 6*S);
-    ctx.fillRect(tX + 92*S, 54*S, 6*S, 4*S);
-    ctx.fillStyle = '#3a2a1a';
-    ctx.fillRect(tX + 94*S, 64*S, 2*S, 8*S);
+    // Paintings
+    drawPainting(CANVAS_W * 0.28, 30*S, 80*S, 55*S, paintingImgs[0]);
+    drawPainting(CANVAS_W / 2 - 45*S, 22*S, 90*S, 65*S, paintingImgs[1]);
+    drawPainting(CANVAS_W * 0.72 - 80*S, 32*S, 75*S, 50*S, paintingImgs[2]);
 }
 
 function drawCloud(cx, cy, cw, ch) {
@@ -201,6 +166,28 @@ function drawWindow(x, y, w, h) {
 function drawFloor() {
     ctx.fillStyle = '#4a6a5a';
     ctx.fillRect(0, 120*S, CANVAS_W, CANVAS_H - 120*S);
+}
+
+function drawPainting(x, y, w, h, img) {
+    // Frame
+    ctx.fillStyle = '#2a2a2a';
+    ctx.fillRect(x, y, w, h);
+    // Image (contain-fit)
+    if (img && img.complete && img.naturalWidth > 0) {
+        ctx.imageSmoothingEnabled = false;
+        const innerW = w - 6*S, innerH = h - 6*S;
+        const imgRatio = img.naturalWidth / img.naturalHeight;
+        const frameRatio = innerW / innerH;
+        let dw, dh;
+        if (imgRatio > frameRatio) {
+            dw = innerW;
+            dh = innerW / imgRatio;
+        } else {
+            dh = innerH;
+            dw = innerH * imgRatio;
+        }
+        ctx.drawImage(img, x + 3*S + (innerW - dw) / 2, y + 3*S + (innerH - dh) / 2, dw, dh);
+    }
 }
 
 function drawDesk(x, y) {
@@ -436,12 +423,16 @@ function drawCoffeCup(x, y) {
     ctx.fillRect(x + 10*S, y + 2*S, 4*S, 4*S);
     ctx.fillStyle = '#4a6a5a'; // floor color inside the handle
     ctx.fillRect(x + 11*S, y + 3*S, 2*S, 2*S);
-    // Steam
-    if (Math.floor(animFrame / 4) % 2 === 0) {
-        ctx.fillStyle = 'rgba(255,255,255,0.4)';
-        ctx.fillRect(x + 3*S, y - 4*S, 2*S, 3*S);
-        ctx.fillRect(x + 6*S, y - 3*S, 2*S, 2*S);
-    }
+    // Steam — curling wisp
+    const phase = animFrame % 12;
+    ctx.fillStyle = 'rgba(255,255,255,0.35)';
+    // Two rising pixels that sway left-right
+    const sway1 = (phase < 4) ? 0 : (phase < 8) ? 2 : -2;
+    const sway2 = (phase < 3) ? 2 : (phase < 6) ? 0 : (phase < 9) ? -2 : 0;
+    ctx.fillRect(x + (4 + sway1)*S, y - 4*S, 2*S, 2*S);
+    ctx.fillRect(x + (4 + sway2)*S, y - 7*S, 2*S, 2*S);
+    ctx.fillStyle = 'rgba(255,255,255,0.2)';
+    ctx.fillRect(x + (4 - sway1)*S, y - 10*S, 2*S, 2*S);
 }
 
 function drawCoffeeMachine(x, y) {
@@ -479,7 +470,7 @@ function drawScene() {
     drawWalls();
 
     // Decorations
-    drawLargePlant(CANVAS_W - 60, CANVAS_H - 80);
+    drawLargePlant(CANVAS_W - 90, CANVAS_H - 110);
     drawWaterCooler(30, CANVAS_H - 140);
 
     const now = Date.now();
