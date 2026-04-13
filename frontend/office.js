@@ -1,0 +1,639 @@
+// Pixel Office — frontend
+// Polls /api/events/recent and draws placeholder characters on canvas.
+
+const API_BASE = (window.PIXEL_OFFICE_API || '/api');
+const POLL_INTERVAL = 2000;
+let CANVAS_W = 960;
+let CANVAS_H = 540;
+
+// Activity colors
+const ACTIVITY_COLORS = {
+    planning: '#f0ad4e', // yellow
+    coding:   '#337ab7', // blue
+    review:   '#9b59b6', // purple
+    bugfix:   '#d9534f', // red
+    testing:  '#5bc0de', // light blue
+    done:     '#5cb85c', // green
+    waiting:  '#e8a317', // orange
+    idle:     '#777777', // grey
+};
+
+const canvas = document.getElementById('office');
+const ctx = canvas.getContext('2d');
+
+// HiDPI/Retina support + window size
+const dpr = window.devicePixelRatio || 1;
+let S = 1; // Scale factor
+
+function resizeCanvas() {
+    CANVAS_W = window.innerWidth;
+    CANVAS_H = window.innerHeight;
+    canvas.width = CANVAS_W * dpr;
+    canvas.height = CANVAS_H * dpr;
+    canvas.style.width = CANVAS_W + 'px';
+    canvas.style.height = CANVAS_H + 'px';
+    ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+
+    // Scale factor relative to original 960x540
+    S = Math.min(CANVAS_W / 960, CANVAS_H / 540);
+
+    // Update desk positions to match window size
+    const colW = CANVAS_W / 3;
+    const topMargin = 200 * S + CANVAS_H * 0.05;
+    const bottomMargin = 30 * S;
+    const usableH = CANVAS_H - topMargin - bottomMargin;
+    const rowH = usableH / 2;
+    for (let i = 0; i < DESKS.length; i++) {
+        const col = i % 3;
+        const row = Math.floor(i / 3);
+        DESKS[i].x = colW * col + (colW - 100 * S) / 2;
+        DESKS[i].y = topMargin + row * rowH;
+    }
+}
+
+let animFrame = 0;
+let lastPoll = new Date(Date.now() - 60000).toISOString();
+
+// Per-actor state: { actor: { activity, task, project } }
+// Key = actor name, value = latest state
+const actors = {};
+// Actor order for desk assignments (max 6)
+const actorOrder = [];
+
+// Default character settings (can be overridden with window.PIXEL_OFFICE_CHARACTERS array)
+const DEFAULT_CHARACTERS = [
+    { name: 'Markku', hair: '#4a3020', shirt: '#337ab7', gender: 'male' },
+    { name: 'Liisa',  hair: '#8a5a30', shirt: '#9b59b6', gender: 'female' },
+    { name: 'Ilkka',  hair: '#2a2a2a', shirt: '#5cb85c', gender: 'male' },
+    { name: 'Matti',  hair: '#c4a050', shirt: '#e67e22', gender: 'male' },
+    { name: 'Päivi',  hair: '#6a2020', shirt: '#e74c8c', gender: 'female' },
+    { name: 'Anneli', hair: '#3a3a3a', shirt: '#3498db', gender: 'female' },
+];
+const characters = window.PIXEL_OFFICE_CHARACTERS || DEFAULT_CHARACTERS;
+
+// Desk positions (6 desks, 3x2 grid)
+const DESKS = characters.slice(0, 6).map((c, i) => ({
+    x: 0, y: 0, // updated in resizeCanvas()
+    name: c.name,
+    hair: c.hair || '#4a3020',
+    shirt: c.shirt || '#337ab7',
+    gender: c.gender || 'male',
+}));
+
+resizeCanvas();
+window.addEventListener('resize', resizeCanvas);
+
+// Drawing helper functions — pixel art style
+function drawWalls() {
+    // Back wall
+    ctx.fillStyle = '#4a6a8a';
+    ctx.fillRect(0, 0, CANVAS_W, 120*S);
+
+    // Wall baseboard
+    ctx.fillStyle = '#3a5a7a';
+    ctx.fillRect(0, 115*S, CANVAS_W, 5*S);
+
+    // Window on the left
+    drawWindow(CANVAS_W * 0.08, 20*S, 120*S, 70*S);
+    // Window on the right
+    drawWindow(CANVAS_W * 0.82, 20*S, 120*S, 70*S);
+
+    // Painting in the center — pixel landscape
+    const tX = CANVAS_W / 2 - 60*S;
+    ctx.fillStyle = '#2a2a2a';
+    ctx.fillRect(tX, 22*S, 120*S, 70*S);
+    // Sky
+    ctx.fillStyle = '#6aafe8';
+    ctx.fillRect(tX + 4*S, 26*S, 112*S, 30*S);
+    // Cloud
+    ctx.fillStyle = '#d0e8ff';
+    ctx.fillRect(tX + 20*S, 30*S, 18*S, 6*S);
+    ctx.fillRect(tX + 16*S, 33*S, 26*S, 6*S);
+    ctx.fillRect(tX + 75*S, 34*S, 14*S, 5*S);
+    ctx.fillRect(tX + 72*S, 36*S, 20*S, 5*S);
+    // Mountains
+    ctx.fillStyle = '#5a7a5a';
+    ctx.fillRect(tX + 4*S, 48*S, 30*S, 8*S);
+    ctx.fillRect(tX + 10*S, 42*S, 18*S, 6*S);
+    ctx.fillRect(tX + 16*S, 38*S, 6*S, 4*S);
+    ctx.fillStyle = '#4a6a4a';
+    ctx.fillRect(tX + 60*S, 46*S, 36*S, 10*S);
+    ctx.fillRect(tX + 68*S, 40*S, 20*S, 6*S);
+    ctx.fillRect(tX + 74*S, 36*S, 8*S, 4*S);
+    // Snow caps on mountain peaks
+    ctx.fillStyle = '#eef8ff';
+    ctx.fillRect(tX + 16*S, 38*S, 6*S, 2*S);
+    ctx.fillRect(tX + 74*S, 36*S, 8*S, 2*S);
+    // Meadow — extends to frame bottom (88*S)
+    ctx.fillStyle = '#5a9a4a';
+    ctx.fillRect(tX + 4*S, 56*S, 112*S, 32*S);
+    // Lake
+    ctx.fillStyle = '#4a8ac0';
+    ctx.fillRect(tX + 40*S, 64*S, 30*S, 14*S);
+    ctx.fillStyle = 'rgba(255,255,255,0.2)';
+    ctx.fillRect(tX + 44*S, 66*S, 10*S, 2*S);
+    // Spruce tree on the left
+    ctx.fillStyle = '#2a5a2a';
+    ctx.fillRect(tX + 10*S, 60*S, 8*S, 4*S);
+    ctx.fillRect(tX + 12*S, 56*S, 4*S, 4*S);
+    ctx.fillStyle = '#3a2a1a';
+    ctx.fillRect(tX + 13*S, 64*S, 2*S, 8*S);
+    // Spruce tree on the right
+    ctx.fillStyle = '#2a5a2a';
+    ctx.fillRect(tX + 90*S, 58*S, 10*S, 6*S);
+    ctx.fillRect(tX + 92*S, 54*S, 6*S, 4*S);
+    ctx.fillStyle = '#3a2a1a';
+    ctx.fillRect(tX + 94*S, 64*S, 2*S, 8*S);
+}
+
+function drawWindow(x, y, w, h) {
+    // Frame
+    ctx.fillStyle = '#6a4a2a';
+    ctx.fillRect(x, y, w, h);
+    // Glass
+    ctx.fillStyle = '#a0d8ef';
+    ctx.fillRect(x + 4, y + 4, w - 8, h - 8);
+    // Cross divider
+    ctx.fillStyle = '#6a4a2a';
+    ctx.fillRect(x + w / 2 - 2, y + 4, 4, h - 8);
+    ctx.fillRect(x + 4, y + h / 2 - 2, w - 8, 4);
+    // Reflection
+    ctx.fillStyle = 'rgba(255,255,255,0.15)';
+    ctx.fillRect(x + 8, y + 8, 16, 8);
+}
+
+function drawFloor() {
+    ctx.fillStyle = '#4a6a5a';
+    ctx.fillRect(0, 120*S, CANVAS_W, CANVAS_H - 120*S);
+}
+
+function drawDesk(x, y) {
+    // Standing desk — same height as before, metal legs
+    ctx.fillStyle = '#b08050';
+    ctx.fillRect(x, y, 100*S, 8*S);
+    ctx.fillStyle = '#8a6030';
+    ctx.fillRect(x, y + 8*S, 100*S, 5*S);
+    ctx.fillStyle = '#6a4a2a';
+    ctx.fillRect(x + 4*S, y + 13*S, 6*S, 30*S);
+    ctx.fillRect(x + 90*S, y + 13*S, 6*S, 30*S);
+}
+
+function drawComputer(x, y, screenColor, active, activity) {
+    ctx.fillStyle = '#2a2a2a';
+    ctx.fillRect(x, y - 42*S, 52*S, 40*S);
+
+    if (activity === 'waiting') {
+        const flash = Math.floor(animFrame / 3) % 2 === 0;
+        ctx.fillStyle = flash ? '#d9534f' : '#1a0a0a';
+        ctx.fillRect(x + 3*S, y - 39*S, 46*S, 34*S);
+        return drawComputerBase(x, y);
+    }
+
+    ctx.fillStyle = active ? '#0a1a0a' : '#0a0a0a';
+    ctx.fillRect(x + 3*S, y - 39*S, 46*S, 34*S);
+
+    if (active) {
+        const lineColor = screenColor;
+        const numLines = 8;
+        const screenX = x + 6*S;
+        const maxW = 38*S;
+        for (let i = 0; i < numLines; i++) {
+            const lineY = y - 36*S + i * 4*S;
+            const seed = Math.abs(Math.sin(i * 3.7 + animFrame * 0.8 + i * i)) * maxW;
+            const lineW = 8*S + (seed % (maxW - 8*S));
+            if (i === numLines - 1) {
+                const cursorVisible = Math.floor(animFrame / 3) % 2 === 0;
+                ctx.fillStyle = lineColor;
+                ctx.fillRect(screenX, lineY, lineW, 2*S);
+                if (cursorVisible) {
+                    ctx.fillStyle = '#fff';
+                    ctx.fillRect(screenX + lineW + 2*S, lineY, 2*S, 2*S);
+                }
+            } else {
+                ctx.fillStyle = lineColor;
+                ctx.globalAlpha = 0.4 + (i / numLines) * 0.6;
+                ctx.fillRect(screenX, lineY, lineW, 2*S);
+                ctx.globalAlpha = 1;
+            }
+        }
+    }
+
+    drawComputerBase(x, y);
+}
+
+function drawComputerBase(x, y) {
+    // Monitor stand
+    ctx.fillStyle = '#2a2a2a';
+    ctx.fillRect(x + 22*S, y - 2*S, 8*S, 4*S);
+    ctx.fillRect(x + 18*S, y + 2*S, 16*S, 2*S);
+    // Keyboard
+    ctx.fillStyle = '#3a3a3a';
+    ctx.fillRect(x - 1*S, y + 2*S, 30*S, 5*S);
+    ctx.fillStyle = '#4a4a4a';
+    for (let i = 0; i < 5; i++) {
+        ctx.fillRect(x + 1*S + i * 6*S, y + 3*S, 4*S, 3*S);
+    }
+}
+
+function drawCharacter(x, y, shirtColor, working, hairColor, gender) {
+    // Head
+    ctx.fillStyle = '#ffcc99';
+    ctx.fillRect(x + 4*S, y - 20*S, 16*S, 16*S);
+    // Hair (top)
+    ctx.fillStyle = hairColor || '#4a3020';
+    if (gender === 'female') {
+        ctx.fillRect(x + 4*S, y - 22*S, 16*S, 7*S);
+    } else {
+        ctx.fillRect(x + 4*S, y - 20*S, 16*S, 5*S);
+        ctx.fillRect(x + 2*S, y - 20*S, 7*S, 9*S);
+    }
+    // Shirt
+    ctx.fillStyle = shirtColor;
+    ctx.fillRect(x + 1*S, y - 5*S, 22*S, 25*S);
+    // Hands
+    ctx.fillStyle = '#ffcc99';
+    if (working) {
+        const tick = Math.floor(animFrame / 2) % 4;
+        const leftOff  = (tick === 0 || tick === 1 ? -1 : 1) * S;
+        const rightOff = (tick === 2 || tick === 3 ? -1 : 1) * S;
+        ctx.fillRect(x - 4*S, y - 2*S + leftOff, 5*S, 6*S);
+        ctx.fillRect(x + 23*S, y - 2*S + rightOff, 5*S, 6*S);
+    } else {
+        ctx.fillRect(x - 4*S, y - 2*S, 5*S, 6*S);
+        ctx.fillRect(x + 23*S, y - 2*S, 5*S, 6*S);
+    }
+    // Pants (wider at waist, narrowing down)
+    ctx.fillStyle = '#2a3a5a';
+    ctx.fillRect(x + 2*S, y + 20*S, 19*S, 7*S);
+    ctx.fillRect(x + 2*S, y + 26*S, 8*S, 14*S);
+    ctx.fillRect(x + 13*S, y + 26*S, 8*S, 14*S);
+    // Shoes
+    ctx.fillStyle = '#1a1a1a';
+    ctx.fillRect(x + 2*S, y + 40*S, 8*S, 4*S);
+    ctx.fillRect(x + 13*S, y + 40*S, 8*S, 4*S);
+    // Long hair — drawn last on top of everything
+    if (gender === 'female') {
+        ctx.fillStyle = hairColor || '#4a3020';
+        ctx.fillRect(x + 1*S, y - 18*S, 9*S, 24*S);
+    }
+}
+
+function drawSpeechBubble(deskX, deskY, text, activity) {
+    const isWaiting = activity === 'waiting';
+    const isDone = activity === 'done';
+    const displayText = isWaiting ? '???' : text;
+
+    ctx.font = `${11*S}px monospace`;
+    const maxLineW = 22; // characters per line
+    let line1 = displayText;
+    let line2 = '';
+
+    if (displayText.length > maxLineW) {
+        // Break at word boundary or force
+        const breakAt = displayText.lastIndexOf(' ', maxLineW);
+        const splitPos = breakAt > 8 ? breakAt : maxLineW;
+        line1 = displayText.slice(0, splitPos);
+        line2 = displayText.slice(splitPos).trimStart();
+        if (line2.length > maxLineW) {
+            line2 = line2.slice(0, maxLineW - 2) + '..';
+        }
+    }
+
+    const w1 = ctx.measureText(line1).width;
+    const w2 = line2 ? ctx.measureText(line2).width : 0;
+    const bubbleW = Math.max(w1, w2) + 14*S;
+    const bubbleH = line2 ? 32*S : 20*S;
+    const bubbleX = deskX + 50*S - bubbleW / 2;
+    const bubbleY = deskY - 76*S - (line2 ? 12*S : 0);
+
+    // Flashing bubble in waiting state
+    if (isWaiting) {
+        const visible = Math.floor(animFrame / 3) % 2 === 0;
+        if (!visible) return;
+        ctx.fillStyle = '#d9534f';
+    } else if (isDone) {
+        ctx.fillStyle = ACTIVITY_COLORS.done;
+    } else {
+        ctx.fillStyle = 'rgba(255,255,255,0.95)';
+    }
+    ctx.fillRect(bubbleX, bubbleY, bubbleW, bubbleH);
+
+    // Arrow down (triangle)
+    ctx.beginPath();
+    ctx.moveTo(deskX + 33*S, bubbleY + bubbleH - 1*S);
+    ctx.lineTo(deskX + 43*S, bubbleY + bubbleH - 1*S);
+    ctx.lineTo(deskX + 38*S, bubbleY + bubbleH + 5*S);
+    ctx.closePath();
+    ctx.fill();
+
+    ctx.fillStyle = (isDone || isWaiting) ? '#fff' : '#222';
+    ctx.textAlign = 'left';
+    ctx.fillText(line1, bubbleX + 7*S, bubbleY + 14*S);
+    if (line2) {
+        ctx.fillText(line2, bubbleX + 7*S, bubbleY + 26*S);
+    }
+}
+
+function drawPlant(x, y, scale) {
+    const p = scale || 1;
+    // Pot
+    ctx.fillStyle = '#b06030';
+    ctx.fillRect(x, y, 16*p, 14*p);
+    ctx.fillStyle = '#904820';
+    ctx.fillRect(x - 2*p, y, 20*p, 4*p);
+    // Leaves
+    ctx.fillStyle = '#3a8a3a';
+    ctx.fillRect(x + 2*p, y - 10*p, 12*p, 10*p);
+    ctx.fillStyle = '#2a7a2a';
+    ctx.fillRect(x - 2*p, y - 14*p, 8*p, 8*p);
+    ctx.fillRect(x + 10*p, y - 16*p, 8*p, 8*p);
+    ctx.fillStyle = '#4a9a4a';
+    ctx.fillRect(x + 4*p, y - 18*p, 8*p, 6*p);
+}
+
+function drawLargePlant(x, y) {
+    // Large pot — cone-shaped
+    ctx.fillStyle = '#904820';
+    ctx.fillRect(x - 4, y, 40, 6);        // top edge wider
+    ctx.fillStyle = '#b06030';
+    ctx.fillRect(x, y + 6, 32, 28);       // body
+    ctx.fillStyle = '#a05828';
+    ctx.fillRect(x + 2, y + 10, 28, 2);   // decorative band
+    ctx.fillStyle = '#904820';
+    ctx.fillRect(x + 4, y + 34, 24, 4);   // narrower bottom
+    // Soil
+    ctx.fillStyle = '#3a2a1a';
+    ctx.fillRect(x + 2, y - 2, 28, 4);
+    // Stem in the center
+    ctx.fillStyle = '#2a6a1a';
+    ctx.fillRect(x + 14, y - 30, 4, 30);
+    // Leaves — large and layered
+    ctx.fillStyle = '#3a8a3a';
+    ctx.fillRect(x + 2, y - 24, 28, 12);
+    ctx.fillRect(x - 2, y - 32, 12, 10);
+    ctx.fillRect(x + 22, y - 34, 12, 10);
+    // Darker leaves in the back
+    ctx.fillStyle = '#2a7a2a';
+    ctx.fillRect(x + 6, y - 38, 8, 8);
+    ctx.fillRect(x + 18, y - 40, 8, 8);
+    ctx.fillRect(x - 4, y - 20, 8, 6);
+    ctx.fillRect(x + 28, y - 22, 8, 6);
+    // Lighter leaves in the front
+    ctx.fillStyle = '#4aaa4a';
+    ctx.fillRect(x + 10, y - 44, 6, 6);
+    ctx.fillRect(x + 8, y - 28, 6, 4);
+    ctx.fillRect(x + 20, y - 26, 6, 4);
+    // Leaf veins / details
+    ctx.fillStyle = '#5aba5a';
+    ctx.fillRect(x + 4, y - 22, 2, 4);
+    ctx.fillRect(x + 26, y - 30, 2, 4);
+    ctx.fillRect(x + 12, y - 42, 2, 4);
+}
+
+function drawCoffeCup(x, y) {
+    // Cup — solid white
+    ctx.fillStyle = '#f0f0f0';
+    ctx.fillRect(x, y, 10*S, 8*S);
+    // Handle
+    ctx.fillStyle = '#e0e0e0';
+    ctx.fillRect(x + 10*S, y + 2*S, 4*S, 4*S);
+    ctx.fillStyle = '#4a6a5a'; // floor color inside the handle
+    ctx.fillRect(x + 11*S, y + 3*S, 2*S, 2*S);
+    // Steam
+    if (Math.floor(animFrame / 4) % 2 === 0) {
+        ctx.fillStyle = 'rgba(255,255,255,0.4)';
+        ctx.fillRect(x + 3*S, y - 4*S, 2*S, 3*S);
+        ctx.fillRect(x + 6*S, y - 3*S, 2*S, 2*S);
+    }
+}
+
+function drawCoffeeMachine(x, y) {
+    // Body
+    ctx.fillStyle = '#555';
+    ctx.fillRect(x, y, 24, 30);
+    ctx.fillStyle = '#444';
+    ctx.fillRect(x + 2, y + 4, 20, 12);
+    // Coffee pot
+    ctx.fillStyle = '#333';
+    ctx.fillRect(x + 6, y + 18, 12, 10);
+    // Red indicator light
+    ctx.fillStyle = '#f44';
+    ctx.fillRect(x + 18, y + 2, 4, 3);
+}
+
+function drawWaterCooler(x, y) {
+    // Water bottle
+    ctx.fillStyle = '#88bbee';
+    ctx.fillRect(x + 8, y - 32, 24, 32);
+    ctx.fillStyle = '#6699cc';
+    ctx.fillRect(x + 12, y - 36, 16, 8);
+    // Body
+    ctx.fillStyle = '#ddd';
+    ctx.fillRect(x, y, 40, 56);
+    ctx.fillStyle = '#bbb';
+    ctx.fillRect(x + 4, y + 40, 32, 12);
+}
+
+function drawScene() {
+    // Floor
+    drawFloor();
+    // Walls and windows
+    drawWalls();
+
+    // Decorations
+    drawPlant(30, 145);
+    drawLargePlant(CANVAS_W - 60, CANVAS_H - 80);
+    drawCoffeeMachine(CANVAS_W - 100, 135);
+    drawWaterCooler(30, CANVAS_H - 140);
+
+    const now = Date.now();
+
+    // Remove actors that haven't sent an event in 5 minutes
+    const EXPIRE_MS = 300000;
+    for (let i = actorOrder.length - 1; i >= 0; i--) {
+        const state = actors[actorOrder[i]];
+        if (state) {
+            const elapsed = now - new Date(state.updatedAt).getTime();
+            if (elapsed > EXPIRE_MS) {
+                delete actors[actorOrder[i]];
+                actorOrder.splice(i, 1);
+            }
+        }
+    }
+
+    // Draw desks
+    DESKS.forEach((desk, i) => {
+        const actorName = actorOrder[i];
+        const state = actorName ? actors[actorName] : null;
+        const activity = state ? state.activity : 'idle';
+        const task = state ? state.task : '';
+        const color = ACTIVITY_COLORS[activity] || ACTIVITY_COLORS.idle;
+        const isWorking = activity !== 'idle' && activity !== 'done';
+        const isPrimary = i === 0;
+        const elapsed = state ? now - new Date(state.updatedAt).getTime() : 0;
+        const isOnBreak = !isWorking && elapsed > 60000; // 1 min idle → coffee break
+        const isGone = !actorName || (!isWorking && elapsed > 300000); // 5 min idle → gone
+
+        drawDesk(desk.x, desk.y);
+        drawComputer(desk.x + 40*S, desk.y, color, isWorking, activity);
+
+        if (isGone) {
+            // Character gone — empty desk
+        } else if (actorName) {
+            drawCharacter(desk.x + 28*S, desk.y + 2*S, desk.shirt, isWorking, desk.hair, desk.gender);
+            if (isOnBreak) {
+                drawCoffeCup(desk.x + 70*S, desk.y - 4*S);
+            }
+            // Speech bubble with task name
+            if (activity === 'waiting' || (task && activity !== 'idle')) {
+                const ucTask = task.charAt(0).toUpperCase() + task.slice(1);
+                const bubbleText = ucTask.length > 44 ? ucTask.slice(0, 42) + '..' : ucTask;
+                drawSpeechBubble(desk.x, desk.y, bubbleText, activity);
+            }
+            // Character name and project below the desk
+            ctx.textAlign = 'center';
+            ctx.fillStyle = '#ccc';
+            ctx.font = `${11*S}px monospace`;
+            ctx.fillText(desk.name, desk.x + 50*S, desk.y + 62*S);
+            if (state && state.project) {
+                ctx.fillStyle = '#999';
+                ctx.font = `${10*S}px monospace`;
+                ctx.fillText(state.project, desk.x + 50*S, desk.y + 75*S);
+            }
+        }
+    });
+
+    // Status bar at the bottom
+    ctx.fillStyle = 'rgba(0,0,0,0.7)';
+    ctx.fillRect(0, CANVAS_H - 30*S, CANVAS_W, 30*S);
+
+    // Show all actors' state in the status bar
+    ctx.font = `${10*S}px monospace`;
+    ctx.textAlign = 'left';
+    let statusX = 12*S;
+    actorOrder.forEach((name) => {
+        const state = actors[name];
+        if (!state) return;
+        const color = ACTIVITY_COLORS[state.activity] || ACTIVITY_COLORS.idle;
+        ctx.fillStyle = color;
+        ctx.fillText(`● ${name}`, statusX, CANVAS_H - 10*S);
+        statusX += ctx.measureText(`● ${name}`).width + 16*S;
+    });
+
+    // Title
+    ctx.fillStyle = '#e0e0e0';
+    ctx.font = `bold ${10*S}px monospace`;
+    ctx.textAlign = 'right';
+    ctx.fillText('PIXEL OFFICE', CANVAS_W - 12*S, CANVAS_H - 12*S);
+}
+
+function updateActor(event) {
+    const name = event.actor;
+    actors[name] = {
+        activity: event.activity,
+        task: event.task || '',
+        project: event.project,
+        updatedAt: event.created_at || new Date().toISOString(),
+    };
+    // Assign actor to a desk — match to named desk if possible
+    if (!actorOrder.includes(name)) {
+        const deskIdx = DESKS.findIndex((d, i) => d.name === name && !actorOrder[i]);
+        if (deskIdx >= 0) {
+            // Fill gaps with undefined so the index lands on the right spot
+            while (actorOrder.length < deskIdx) actorOrder.push(undefined);
+            actorOrder[deskIdx] = name;
+        } else if (actorOrder.length < DESKS.length) {
+            // Unknown name — next available spot
+            let placed = false;
+            for (let i = 0; i < DESKS.length; i++) {
+                if (!actorOrder[i]) {
+                    actorOrder[i] = name;
+                    placed = true;
+                    break;
+                }
+            }
+            if (!placed) actorOrder.push(name);
+        }
+    }
+}
+
+async function poll() {
+    try {
+        const url = `${API_BASE}/events/recent?since=${encodeURIComponent(lastPoll)}`;
+        const res = await fetch(url);
+
+        if (!res.ok) {
+            console.warn('[pixel-office] poll error:', res.status);
+            return;
+        }
+
+        const events = await res.json();
+
+        if (events.length > 0) {
+            events.forEach(updateActor);
+            lastPoll = events[events.length - 1].created_at;
+        }
+
+    } catch (err) {
+        console.warn('[pixel-office] poll error:', err.message);
+    }
+}
+
+// Fetch all actors' current state on startup
+async function loadStatus() {
+    try {
+        const res = await fetch(`${API_BASE}/events/status`);
+        if (res.ok) {
+            const statuses = await res.json();
+            statuses.forEach(updateActor);
+        }
+    } catch (err) {
+        console.warn('[pixel-office] status load error:', err.message);
+    }
+}
+
+// Animation loop — redraws at ~4 fps (sufficient for pixel style)
+let lastFrameTime = 0;
+let lastPollTime = 0;
+const FRAME_INTERVAL = 250; // ms per frame
+
+function gameLoop(timestamp) {
+    // Draw at ~4 fps
+    if (timestamp - lastFrameTime >= FRAME_INTERVAL) {
+        animFrame++;
+        drawScene();
+        lastFrameTime = timestamp;
+    }
+    // Poll every 2s
+    if (timestamp - lastPollTime >= POLL_INTERVAL) {
+        poll();
+        lastPollTime = timestamp;
+    }
+    requestAnimationFrame(gameLoop);
+}
+
+// Fullscreen
+document.getElementById('fullscreen-btn').addEventListener('click', () => {
+    if (document.fullscreenElement) {
+        document.exitFullscreen();
+    } else {
+        document.documentElement.requestFullscreen();
+    }
+});
+
+// Fullscreen also with F key
+document.addEventListener('keydown', (e) => {
+    if (e.key === 'f' || e.key === 'F') {
+        if (document.fullscreenElement) {
+            document.exitFullscreen();
+        } else {
+            document.documentElement.requestFullscreen();
+        }
+    }
+});
+
+drawScene();
+loadStatus().then(() => {
+    drawScene();
+    requestAnimationFrame(gameLoop);
+});

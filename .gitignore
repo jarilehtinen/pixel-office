@@ -1,0 +1,33 @@
+# OS
+.DS_Store
+Thumbs.db
+
+# IDE / AI
+.idea/
+.vscode/
+.claude/
+*.swp
+*.swo
+
+# Environment
+.env
+.env.backup
+.env.production
+
+# Laravel (backend/)
+backend/vendor/
+backend/node_modules/
+backend/storage/*.key
+backend/storage/framework/cache/data/*
+backend/storage/framework/sessions/*
+backend/storage/framework/views/*
+backend/.phpunit.result.cache
+backend/.phpunit.cache/
+
+# SQLite
+*.sqlite
+*.sqlite-journal
+
+# Logs
+*.log
+CLAUDE.md

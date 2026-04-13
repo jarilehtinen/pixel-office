@@ -1,0 +1,49 @@
+<!DOCTYPE html>
+<html lang="fi">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Pixel Office</title>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body {
+            background: #1a1a2e;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            min-height: 100vh;
+            font-family: monospace;
+            color: #e0e0e0;
+        }
+        canvas {
+            border: none;
+            display: block;
+        }
+        #fullscreen-btn {
+            position: fixed;
+            bottom: 12px;
+            right: 12px;
+            background: rgba(255,255,255,0.1);
+            border: 1px solid #555;
+            color: #ccc;
+            font-size: 20px;
+            padding: 6px 10px;
+            cursor: pointer;
+            border-radius: 4px;
+        }
+        #fullscreen-btn:hover {
+            background: rgba(255,255,255,0.2);
+        }
+        :fullscreen #fullscreen-btn,
+        :-webkit-full-screen #fullscreen-btn {
+            display: none;
+        }
+    </style>
+</head>
+<body>
+    <canvas id="office"></canvas>
+    <button id="fullscreen-btn" title="Fullscreen">⛶</button>
+    <script src="office.js"></script>
+</body>
+</html>
