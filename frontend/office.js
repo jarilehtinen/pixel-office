@@ -479,9 +479,7 @@ function drawScene() {
     drawWalls();
 
     // Decorations
-    drawPlant(30, 145);
     drawLargePlant(CANVAS_W - 60, CANVAS_H - 80);
-    drawCoffeeMachine(CANVAS_W - 100, 135);
     drawWaterCooler(30, CANVAS_H - 140);
 
     const now = Date.now();
