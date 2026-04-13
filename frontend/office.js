@@ -53,8 +53,14 @@ function resizeCanvas() {
 
 let animFrame = 0;
 
-// Painting images
-const paintingImgs = [1, 3, 5].map(n => {
+// Painting images — pick 3 random from 6 on each load
+const PAINTING_COUNT = 6;
+const paintingNums = [];
+while (paintingNums.length < 3) {
+    const n = Math.floor(Math.random() * PAINTING_COUNT) + 1;
+    if (!paintingNums.includes(n)) paintingNums.push(n);
+}
+const paintingImgs = paintingNums.map(n => {
     const img = new Image();
     img.src = 'paintings/painting' + n + '.png?v=' + Date.now();
     return img;
