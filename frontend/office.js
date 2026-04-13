@@ -196,9 +196,6 @@ function drawWindow(x, y, w, h) {
     ctx.fillStyle = '#6a4a2a';
     ctx.fillRect(x + w / 2 - 2, y + 4, 4, h - 8);
     ctx.fillRect(x + 4, y + h / 2 - 2, w - 8, 4);
-    // Reflection
-    ctx.fillStyle = 'rgba(255,255,255,0.15)';
-    ctx.fillRect(x + 8, y + 8, 16, 8);
 }
 
 function drawFloor() {
