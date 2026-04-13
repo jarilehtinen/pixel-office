@@ -15,7 +15,7 @@ SESSION_FILE="${SESSION_DIR}/pid-${CC_PID}"
 if [ -f "$SESSION_FILE" ]; then
     ACTOR=$(cat "$SESSION_FILE")
 else
-    ACTOR="$PROJECT"
+    exit 0
 fi
 
 curl -s -X POST "${PIXEL_OFFICE_URL}/api/events" \

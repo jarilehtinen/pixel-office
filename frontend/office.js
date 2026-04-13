@@ -320,7 +320,7 @@ function drawSpeechBubble(deskX, deskY, text, activity) {
     const isDone = activity === 'done';
     const displayText = isWaiting ? '???' : text;
 
-    ctx.font = `${11*S}px monospace`;
+    ctx.font = `500 ${11*S}px 'IBM Plex Mono', monospace`;
     const maxLineW = 22; // characters per line
     let line1 = displayText;
     let line2 = '';
@@ -533,11 +533,11 @@ function drawScene() {
             // Character name and project below the desk
             ctx.textAlign = 'center';
             ctx.fillStyle = '#ccc';
-            ctx.font = `${11*S}px monospace`;
+            ctx.font = `500 ${11*S}px 'IBM Plex Mono', monospace`;
             ctx.fillText(desk.name, desk.x + 50*S, desk.y + 62*S);
             if (state && state.project) {
                 ctx.fillStyle = '#999';
-                ctx.font = `${10*S}px monospace`;
+                ctx.font = `500 ${10*S}px 'IBM Plex Mono', monospace`;
                 ctx.fillText(state.project, desk.x + 50*S, desk.y + 75*S);
             }
         }
@@ -548,7 +548,7 @@ function drawScene() {
     ctx.fillRect(0, CANVAS_H - 30*S, CANVAS_W, 30*S);
 
     // Show all actors' state in the status bar (right-aligned)
-    ctx.font = `${10*S}px monospace`;
+    ctx.font = `500 ${11*S}px 'IBM Plex Mono', monospace`;
     ctx.textAlign = 'right';
     let statusX = CANVAS_W - 12*S;
     for (let i = actorOrder.length - 1; i >= 0; i--) {
@@ -563,7 +563,7 @@ function drawScene() {
 
     // Title
     ctx.fillStyle = '#e0e0e0';
-    ctx.font = `bold ${10*S}px monospace`;
+    ctx.font = `bold ${11*S}px 'IBM Plex Mono', monospace`;
     ctx.textAlign = 'left';
     ctx.fillText('PIXEL OFFICE', 12*S, CANVAS_H - 12*S);
 }

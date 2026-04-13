@@ -33,7 +33,8 @@ if [ -f "$SESSION_FILE" ]; then
     ACTOR=$(cat "$SESSION_FILE")
     rm -f "$SESSION_FILE"
 else
-    ACTOR="$PROJECT"
+    # No session file — skip sending event (likely a subagent)
+    exit 0
 fi
 
 curl -s -X POST "${PIXEL_OFFICE_URL}/api/events" \
