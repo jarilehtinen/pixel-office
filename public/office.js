@@ -339,7 +339,7 @@ function drawSpeechBubble(deskX, deskY, text, activity) {
     const w1 = ctx.measureText(line1).width;
     const w2 = line2 ? ctx.measureText(line2).width : 0;
     const bubbleW = Math.max(w1, w2) + 14*S;
-    const bubbleH = line2 ? 32*S : 20*S;
+    const bubbleH = line2 ? 34*S : 20*S;
     const bubbleX = deskX + 50*S - bubbleW / 2;
     const bubbleY = deskY - 76*S - (line2 ? 12*S : 0);
 
@@ -367,7 +367,7 @@ function drawSpeechBubble(deskX, deskY, text, activity) {
     ctx.textAlign = 'left';
     ctx.fillText(line1, bubbleX + 7*S, bubbleY + 14*S);
     if (line2) {
-        ctx.fillText(line2, bubbleX + 7*S, bubbleY + 26*S);
+        ctx.fillText(line2, bubbleX + 7*S, bubbleY + 28*S);
     }
 }
 
