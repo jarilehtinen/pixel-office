@@ -47,11 +47,18 @@ function resizeCanvas() {
         const col = i % 3;
         const row = Math.floor(i / 3);
         DESKS[i].x = colW * col + (colW - 100 * S) / 2;
-        DESKS[i].y = topMargin + row * rowH;
+        DESKS[i].y = topMargin + row * rowH + (row > 0 ? 30 : 0);
     }
 }
 
 let animFrame = 0;
+
+// Clouds drifting past windows (one per window, different offsets)
+const clouds = [
+    { x: 0, y: 0.3, w: 28, h: 11, speed: 0.12 },
+    { x: 0.5, y: 0.25, w: 26, h: 10, speed: 0.1 },
+];
+let cloudOffset = 0;
 let lastPoll = new Date(Date.now() - 60000).toISOString();
 
 // Per-actor state: { actor: { activity, task, project } }
@@ -146,13 +153,45 @@ function drawWalls() {
     ctx.fillRect(tX + 94*S, 64*S, 2*S, 8*S);
 }
 
+function drawCloud(cx, cy, cw, ch) {
+    // Pixel-style cloud: a cluster of rectangles
+    const s = S;
+    ctx.fillStyle = 'rgba(255,255,255,0.45)';
+    ctx.fillRect(cx, cy, cw * s, ch * s);
+    ctx.fillRect(cx + 3 * s, cy - 4 * s, (cw - 6) * s, 4 * s);
+    ctx.fillRect(cx - 4 * s, cy + 2 * s, 4 * s, (ch - 4) * s);
+    ctx.fillRect(cx + cw * s, cy + 2 * s, 4 * s, (ch - 4) * s);
+}
+
+function drawCloudsInWindow(x, y, w, h, cloudIndex) {
+    const c = clouds[cloudIndex];
+    // Clip to entire glass area
+    ctx.save();
+    ctx.beginPath();
+    ctx.rect(x + 4, y + 4, w - 8, h - 8);
+    ctx.clip();
+    // Cloud wraps across the window width
+    const glassW = w - 8;
+    const period = glassW + c.w * S;
+    const rawX = (c.x * period + cloudOffset * c.speed * S) % period;
+    const cx = x + 4 + rawX - c.w * S * 0.5;
+    const cy = y + 4 + c.y * (h - 8);
+    drawCloud(cx, cy, c.w, c.h);
+    ctx.restore();
+}
+
 function drawWindow(x, y, w, h) {
     // Frame
     ctx.fillStyle = '#6a4a2a';
     ctx.fillRect(x, y, w, h);
-    // Glass
+    // Glass (sky)
     ctx.fillStyle = '#a0d8ef';
     ctx.fillRect(x + 4, y + 4, w - 8, h - 8);
+
+    // Draw one cloud per window, clipped to glass area
+    drawCloudsInWindow(x, y, w, h, drawWindow._cloudIndex || 0);
+    drawWindow._cloudIndex = (drawWindow._cloudIndex || 0) + 1;
+
     // Cross divider
     ctx.fillStyle = '#6a4a2a';
     ctx.fillRect(x + w / 2 - 2, y + 4, 4, h - 8);
@@ -439,6 +478,7 @@ function drawScene() {
     // Floor
     drawFloor();
     // Walls and windows
+    drawWindow._cloudIndex = 0;
     drawWalls();
 
     // Decorations
@@ -602,6 +642,7 @@ function gameLoop(timestamp) {
     // Draw at ~4 fps
     if (timestamp - lastFrameTime >= FRAME_INTERVAL) {
         animFrame++;
+        cloudOffset += 1;
         drawScene();
         lastFrameTime = timestamp;
     }
