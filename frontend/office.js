@@ -534,24 +534,25 @@ function drawScene() {
     ctx.fillStyle = 'rgba(0,0,0,0.7)';
     ctx.fillRect(0, CANVAS_H - 30*S, CANVAS_W, 30*S);
 
-    // Show all actors' state in the status bar
+    // Show all actors' state in the status bar (right-aligned)
     ctx.font = `${10*S}px monospace`;
-    ctx.textAlign = 'left';
-    let statusX = 12*S;
-    actorOrder.forEach((name) => {
+    ctx.textAlign = 'right';
+    let statusX = CANVAS_W - 12*S;
+    for (let i = actorOrder.length - 1; i >= 0; i--) {
+        const name = actorOrder[i];
         const state = actors[name];
-        if (!state) return;
+        if (!state) continue;
         const color = ACTIVITY_COLORS[state.activity] || ACTIVITY_COLORS.idle;
         ctx.fillStyle = color;
-        ctx.fillText(`● ${name}`, statusX, CANVAS_H - 10*S);
-        statusX += ctx.measureText(`● ${name}`).width + 16*S;
-    });
+        ctx.fillText(`● ${name}`, statusX, CANVAS_H - 12*S);
+        statusX -= ctx.measureText(`● ${name}`).width + 16*S;
+    }
 
     // Title
     ctx.fillStyle = '#e0e0e0';
     ctx.font = `bold ${10*S}px monospace`;
-    ctx.textAlign = 'right';
-    ctx.fillText('PIXEL OFFICE', CANVAS_W - 12*S, CANVAS_H - 12*S);
+    ctx.textAlign = 'left';
+    ctx.fillText('PIXEL OFFICE', 12*S, CANVAS_H - 12*S);
 }
 
 function updateActor(event) {
