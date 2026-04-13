@@ -259,8 +259,9 @@ function drawCharacter(x, y, shirtColor, working, hairColor, gender) {
         ctx.fillRect(x - 4*S, y - 2*S + leftOff, 5*S, 6*S);
         ctx.fillRect(x + 23*S, y - 2*S + rightOff, 5*S, 6*S);
     } else {
-        ctx.fillRect(x - 4*S, y - 2*S, 5*S, 6*S);
-        ctx.fillRect(x + 23*S, y - 2*S, 5*S, 6*S);
+        // Arms hanging down at sides
+        ctx.fillRect(x - 4*S, y - 2*S, 5*S, 22*S);
+        ctx.fillRect(x + 23*S, y - 2*S, 5*S, 22*S);
     }
     // Pants (wider at waist, narrowing down)
     ctx.fillStyle = '#2a3a5a';
